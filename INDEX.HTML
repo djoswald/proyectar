@@ -2,133 +2,159 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Producción</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Monitor Producción - Ultra Rápido</title>
     <style>
+        /* --- ESTILOS DE PANTALLA COMPLETA --- */
         body {
             background-color: black;
             color: white;
             font-family: 'Arial', sans-serif;
             margin: 0;
+            padding: 0;
             height: 100vh;
+            width: 100vw;
+            overflow: hidden; /* Sin barras de scroll */
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 { 
+            height: 6vh; 
+            margin: 0; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 3.5vh; 
+            text-transform: uppercase; 
+            background-color: #000;
+            letter-spacing: 2px;
+            border-bottom: 1px solid #333;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr; 
+            grid-template-rows: 1fr 1fr;    
+            gap: 0; /* Sin espacio para maximizar área */
+            width: 100vw;
+            height: 94vh; 
+        }
+
+        .card {
+            background-color: #0a0a0a; /* Negro casi puro */
+            border: 1px solid #222;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-        }
-        h1 { margin-bottom: 20px; font-size: 24px; text-transform: uppercase; }
-        .grid-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            width: 95%;
-            max-width: 1200px;
-        }
-        .card {
-            background-color: #111;
-            border: 1px solid #333;
-            padding: 30px 10px;
             text-align: center;
-            border-radius: 5px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+            position: relative;
         }
+
+        /* TIPOGRAFÍA DINÁMICA (VMIN) */
         .label {
-            font-size: 3vw;
+            font-size: 5vmin; 
             font-weight: bold;
             text-transform: uppercase;
-            color: #eee;
-            margin-bottom: 10px;
+            color: #888;
+            margin-bottom: 2vh;
         }
-        .value {
-            font-size: 10vw;
-            font-weight: bold;
-            line-height: 1;
-        }
-        .footer { margin-top: 20px; font-size: 12px; color: #666; }
-        #error-msg { color: red; display: none; margin-top: 10px; }
 
-        @media (max-width: 600px) {
-            .label { font-size: 18px; }
-            .value { font-size: 60px; }
+        .value {
+            font-size: 30vmin; /* AÚN MÁS GRANDE */
+            font-weight: bold;
+            line-height: 0.8;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255,255,255,0.2);
+        }
+
+        .footer { 
+            position: absolute; 
+            bottom: 5px; 
+            right: 10px; 
+            font-size: 1.5vh; 
+            color: #444; 
+            font-family: monospace;
+            z-index: 999;
         }
     </style>
 </head>
 <body>
 
     <h1>Producción</h1>
+    
     <div id="dashboard" class="grid-container">
-        <div class="card"><div class="label">...</div><div class="value">...</div></div>
-        <div class="card"><div class="label">...</div><div class="value">...</div></div>
-        <div class="card"><div class="label">...</div><div class="value">...</div></div>
-        <div class="card"><div class="label">...</div><div class="value">...</div></div>
+        <div class="card"><div class="label" id="t0">---</div><div class="value" id="v0">0</div></div>
+        <div class="card"><div class="label" id="t1">---</div><div class="value" id="v1">0</div></div>
+        <div class="card"><div class="label" id="t2">---</div><div class="value" id="v2">0</div></div>
+        <div class="card"><div class="label" id="t3">---</div><div class="value" id="v3">0</div></div>
     </div>
-    <div class="footer" id="last-update">Conectando...</div>
-    <div id="error-msg"></div>
+
+    <div class="footer" id="status">Conectando...</div>
 
     <script>
-        // DATOS EXTRAÍDOS DE TU URL
+        // === TUS DATOS ===
         const sheetID = '133sFEHGeZPoJXbNWvijngLV4nZgYKlbQWX30Fd4b2jk';
-        const sheetGID = '297500829';
-        const range = 'B1:E2'; // Rango de datos
+        const gid = '297500829';
+        const range = 'B1:E2';
 
-        // URL API Google Visualization (Evita bloqueo CORS)
-        const url = `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?tqx=out:json&gid=${sheetGID}&range=${range}&headers=0`;
+        // === ESTRATEGIA DE VELOCIDAD ===
+        // 1. URL directa de CSV
+        const googleUrl = `https://docs.google.com/spreadsheets/d/${sheetID}/export?format=csv&gid=${gid}&range=${range}`;
+        
+        // 2. Proxy 'CorsProxy.io' (Mucho más rápido que AllOrigins)
+        // Nota: Añadimos un timestamp aleatorio al final para evitar caché del proxy
+        const getProxyUrl = () => `https://corsproxy.io/?${encodeURIComponent(googleUrl)}&_=${Date.now()}`;
 
-        async function fetchData() {
+        async function updateDashboard() {
             try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error("Error de conexión");
+                const response = await fetch(getProxyUrl());
                 
+                if (!response.ok) throw new Error("Sin conexión");
+
                 const text = await response.text();
-                // Limpiar respuesta JSON de Google
-                const jsonString = text.substring(47).slice(0, -2);
-                const json = JSON.parse(jsonString);
                 
-                // Procesar datos
-                const rows = json.table.rows;
-                let htmlContent = '';
-
-                // Verificamos que existan al menos 2 filas (Títulos y Valores)
-                if (rows.length >= 2) {
-                    // Iteramos las 4 columnas (índices 0, 1, 2, 3 correspondientes a B, C, D, E)
-                    for (let i = 0; i < 4; i++) {
-                        let celdaTitulo = rows[0].c[i];
-                        let celdaValor = rows[1].c[i];
-
-                        let titulo = celdaTitulo ? (celdaTitulo.v || '') : '';
-                        
-                        // Preferimos el valor formateado (.f) si existe, si no el crudo (.v)
-                        let valor = '0';
-                        if (celdaValor) {
-                            valor = celdaValor.f ? celdaValor.f : (celdaValor.v || '0');
-                        }
-
-                        htmlContent += `
-                        <div class="card">
-                            <div class="label">${titulo}</div>
-                            <div class="value">${valor}</div>
-                        </div>`;
-                    }
-                    
-                    document.getElementById('dashboard').innerHTML = htmlContent;
-                    document.getElementById('last-update').innerText = 'Actualizado: ' + new Date().toLocaleTimeString();
-                    document.getElementById('error-msg').style.display = 'none';
+                // Si Google nos pide login, detenemos para no saturar
+                if (text.includes("<!DOCTYPE html>")) {
+                    document.getElementById('status').innerText = "Error: Hoja privada";
+                    document.getElementById('status').style.color = "red";
+                    return;
                 }
 
-            } catch (error) {
-                console.error(error);
-                document.getElementById('last-update').innerText = 'Error de carga';
-                document.getElementById('error-msg').innerText = 'Verifica que la hoja esté publicada en: Archivo > Compartir > Publicar en la web';
-                document.getElementById('error-msg').style.display = 'block';
+                // Parseo manual ultra-rápido (Split por líneas y comas)
+                const rows = text.split(/\r?\n/);
+                if (rows.length < 2) return;
+
+                const titulos = rows[0].split(',');
+                const valores = rows[1].split(',');
+
+                // Actualización directa al DOM (sin reconstruir HTML)
+                for (let i = 0; i < 4; i++) {
+                    // Limpieza de comillas
+                    const tituloLimpio = titulos[i] ? titulos[i].replace(/^"|"$/g, '') : '';
+                    const valorLimpio = valores[i] ? valores[i].replace(/^"|"$/g, '') : '0';
+
+                    document.getElementById(`t${i}`).innerText = tituloLimpio;
+                    document.getElementById(`v${i}`).innerText = valorLimpio;
+                }
+                
+                // Marca de tiempo
+                const now = new Date();
+                document.getElementById('status').innerText = 'Sync: ' + now.toLocaleTimeString();
+                document.getElementById('status').style.color = "#444";
+
+            } catch (err) {
+                console.error("Reintentando...", err);
+                // No cambiamos el UI si falla, para que no parpadee
             }
         }
 
-        // Iniciar
-        fetchData();
-        // Actualizar cada 10 segundos
-        setInterval(fetchData, 10000);
+        // 1. Ejecutar inmediatamente
+        updateDashboard();
+
+        // 2. Programar cada 60 segundos
+        setInterval(updateDashboard, 60000);
     </script>
 </body>
 </html>
