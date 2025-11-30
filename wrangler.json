@@ -1,13 +1,12 @@
 {
   "name": "monitor",
+  "main": "index.html",
   "assets": {
-    "directory": ".",
+    "directory": "./",
     "exclude": [
       ".git/**",
       ".github/**",
       "wrangler.toml",
-      "package.json",
-      "package-lock.json",
       "node_modules/**"
     ]
   },
