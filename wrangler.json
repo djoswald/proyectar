@@ -1,7 +1,7 @@
 {
-  "name": "mi-sitio",
+  "name": "proyectar",
   "assets": {
-    "directory": "."
+    "directory": "main"
   },
   "compatibility_date": "2025-11-30"
 }
