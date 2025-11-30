@@ -1,7 +1,7 @@
 {
-  "name": "proyectar",
+  "name": "monitor",
   "assets": {
-    "directory": "main"
+    "directory": "public"
   },
   "compatibility_date": "2025-11-30"
 }
