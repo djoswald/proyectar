@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Monitor Producción - Multiproxy</title>
+    <style>
+        /* --- ESTILOS DE PANTALLA COMPLETA --- */
+        body {
+            background-color: black;
+            color: white;
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden; /* Sin barras de scroll */
+            display: flex;
+            flex-direction: column;
+            position: relative; /* Necesario para la marca de agua */
+        }
+
+        /* --- MARCA DE AGUA (LOGO) --- */
+        .watermark {
+            position: absolute;
+            top: 10px; /* Ajusta la distancia desde arriba */
+            left: 10px; /* Ajusta la distancia desde la izquierda */
+            width: 8vw; /* Ancho relativo a la pantalla (8%) */
+            min-width: 60px; /* Tamaño mínimo */
+            max-width: 120px; /* Tamaño máximo */
+            opacity: 1; /* Transparencia (0.1 es muy sutil, 1 es sólido) */
+            z-index: 1000; /* Para que quede por encima de todo */
+            pointer-events: none; /* Para que no interfiera con clics */
+        }
+        
+        /* --- TÍTULO --- */
+        h1 { 
+            height: 6vh; 
+            margin: 0; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 3.5vh; 
+            text-transform: uppercase; 
+            background-color: #000;
+            letter-spacing: 2px;
+            border-bottom: 1px solid #333;
+        }
+
+        /* --- GRID DE TARJETAS --- */
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr; 
+            grid-template-rows: 1fr 1fr;    
+            gap: 0; 
+            width: 100vw;
+            height: 94vh; 
+        }
+
+        .card {
+            background-color: #0a0a0a;
+            border: 1px solid #222;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+        }
+
+        /* --- TIPOGRAFÍA DINÁMICA --- */
+        .label {
+            font-size: 5vmin; 
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #888;
+            margin-bottom: 2vh;
+        }
+
+        .value {
+            font-size: 30vmin; 
+            font-weight: bold;
+            line-height: 0.8;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255,255,255,0.2);
+        }
+
+        /* --- PIE DE PÁGINA --- */
+        .footer { 
+            position: absolute; 
+            bottom: 5px; 
+            right: 10px; 
+            font-size: 1.5vh; 
+            color: #444; 
+            font-family: monospace;
+            z-index: 999;
+        }
+    </style>
+</head>
+<body>
+
+    <img src="https://i.ibb.co/XxKwq3Sn/482030259-1067174312093431-7750360599954286981-n.jpg" alt="Logo" class="watermark">
+
+    <h1>"Agrollanos Planta Alqueria"</h1>
+    
+    <div id="dashboard" class="grid-container">
+        <div class="card"><div class="label" id="t0">---</div><div class="value" id="v0">0</div></div>
+        <div class="card"><div class="label" id="t1">---</div><div class="value" id="v1">0</div></div>
+        <div class="card"><div class="label" id="t2">---</div><div class="value" id="v2">0</div></div>
+        <div class="card"><div class="label" id="t3">---</div><div class="value" id="v3">0</div></div>
+    </div>
+
+    <div class="footer" id="status">Iniciando sistema...</div>
+
+    <script>
+        // === TUS DATOS ===
+        const sheetID = '133sFEHGeZPoJXbNWvijngLV4nZgYKlbQWX30Fd4b2jk';
+        const gid = '297500829';
+        const range = 'B1:E2';
+
+        // 1. URL base de Google CSV
+        const googleUrl = `https://docs.google.com/spreadsheets/d/${sheetID}/export?format=csv&gid=${gid}&range=${range}`;
+        
+        // === LISTA DE PROXIES (PRIORIDAD DE ARRIBA A ABAJO) ===
+        // El código probará el primero, si falla, prueba el segundo, etc.
+        const proxies = [
+            // Proxy 1: El más rápido y fiable (Actual)
+            (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+            
+            // Proxy 2: Respaldo sólido (Algo más lento a veces)
+            (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+            
+            // Proxy 3: Otro respaldo común
+            (url) => `https://thingproxy.freeboard.io/fetch/${url}`
+        ];
+
+        // Variable para recordar qué proxy funcionó la última vez
+        let proxyActualIndex = 0;
+
+        // Función auxiliar para obtener la URL final con timestamp
+        const getFinalUrl = (proxyFunc) => {
+            const urlConTimestamp = googleUrl + `&_=${Date.now()}`; // Evitar caché
+            return proxyFunc(urlConTimestamp);
+        };
+
+        async function updateDashboard() {
+            let exito = false;
+            let intentos = 0;
+
+            // Bucle que intenta con cada proxy de la lista
+            while (!exito && intentos < proxies.length) {
+                try {
+                    // Usamos el índice actual para elegir proxy
+                    // (intentos + proxyActualIndex) % length asegura que rote por la lista
+                    const currentIndex = (proxyActualIndex + intentos) % proxies.length;
+                    const proxyFunc = proxies[currentIndex];
+                    const url = getFinalUrl(proxyFunc);
+                    
+                    document.getElementById('status').innerText = `Probando ruta ${currentIndex + 1}...`;
+
+                    // Usamos un timeout corto (5s) para no esperar eternamente a un proxy roto
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                    const response = await fetch(url, { signal: controller.signal });
+                    clearTimeout(timeoutId); // Limpiar timeout si responde a tiempo
+
+                    if (!response.ok) throw new Error("Error HTTP");
+
+                    const text = await response.text();
+                    
+                    // Validación de datos
+                    if (!text || text.includes("<!DOCTYPE html>")) throw new Error("Datos inválidos");
+
+                    // --- SI LLEGAMOS AQUÍ, EL PROXY FUNCIONÓ ---
+                    exito = true;
+                    proxyActualIndex = currentIndex; // Guardamos este proxy como el "bueno"
+
+                    // Procesar datos
+                    const rows = text.split(/\r?\n/);
+                    if (rows.length < 2) throw new Error("CSV incompleto");
+
+                    const titulos = rows[0].split(',');
+                    const valores = rows[1].split(',');
+
+                    // Actualizar UI
+                    for (let i = 0; i < 4; i++) {
+                        const t = titulos[i] ? titulos[i].replace(/^"|"$/g, '') : '';
+                        const v = valores[i] ? valores[i].replace(/^"|"$/g, '') : '0';
+                        document.getElementById(`t${i}`).innerText = t;
+                        document.getElementById(`v${i}`).innerText = v;
+                    }
+                    
+                    document.getElementById('status').innerText = 'Sync: ' + new Date().toLocaleTimeString() + ` (Ruta ${currentIndex + 1})`;
+                    document.getElementById('status').style.color = "#444";
+
+                } catch (err) {
+                    // Si falla, incrementamos 'intentos' para que el while pruebe el siguiente proxy
+                    console.warn(`Fallo ruta: ${err.message}. Probando siguiente...`);
+                    intentos++;
+                }
+            }
+
+            if (!exito) {
+                 document.getElementById('status').innerText = 'Error: Todas las rutas fallaron.';
+                 document.getElementById('status').style.color = "red";
+            }
+        }
+
+        // 1. Ejecutar inmediatamente
+        updateDashboard();
+
+        // 2. Programar cada 60 segundos
+        setInterval(updateDashboard, 60000);
+    </script>
+</body>
+</html>
