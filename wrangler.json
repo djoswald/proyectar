@@ -1,7 +1,15 @@
 {
   "name": "monitor",
   "assets": {
-    "directory": "public"
+    "directory": ".",
+    "exclude": [
+      ".git/**",
+      ".github/**",
+      "wrangler.toml",
+      "package.json",
+      "package-lock.json",
+      "node_modules/**"
+    ]
   },
   "compatibility_date": "2025-11-30"
 }
